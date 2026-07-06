@@ -1,5 +1,5 @@
 // game.js
-// Depends on: config.js, tasks.js, scoring.js, and a global `supabase` client
+// Depends on: config.js, tasks.js, scoring.js, and a global `sb` client
 // created in index.html from supabase-js.
 
 const state = {
@@ -18,7 +18,7 @@ const el = (id) => document.getElementById(id);
 // ---------- Auth ----------
 
 async function initAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
     showScreen("intro");
@@ -26,7 +26,7 @@ async function initAuth() {
     showScreen("login");
   }
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  sb.auth.onAuthStateChange((_event, session) => {
     if (session) {
       state.user = session.user;
       showScreen("intro");
@@ -35,7 +35,7 @@ async function initAuth() {
 }
 
 async function sendMagicLink(email) {
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.location.href }
   });
@@ -244,7 +244,7 @@ function renderResultsSummary(scores) {
 
 async function saveSession(scores) {
   const timeUsed = CONFIG.totalTimeSeconds - Math.max(0, state.timeRemaining);
-  const { error } = await supabase.from("sessions").insert({
+  const { error } = await sb.from("sessions").insert({
     user_id: state.user.id,
     completed_at: new Date().toISOString(),
     time_used_seconds: timeUsed,
