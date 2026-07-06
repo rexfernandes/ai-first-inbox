@@ -1,9 +1,9 @@
 // report.js
-// Depends on jsPDF (loaded via CDN) and TASKS (from tasks.js) being present
-// on the page before this script runs.
+// Depends on jsPDF + jspdf-autotable (CDN) and TASKS (from tasks.js) being
+// present on the page before this script runs.
 //
 // Exposes helpers used both here (for the PDF) and by game.js (for the
-// on-screen results screen), so the wording stays consistent in both places.
+// on-screen results screen), so wording stays consistent in both places.
 
 const APPROPRIATE_TOTAL = TASKS.filter(t => t.class === "appropriate").length;
 const INAPPROPRIATE_TOTAL = TASKS.filter(t => t.class === "inappropriate").length;
@@ -15,14 +15,26 @@ function buildTaskLookup() {
   return map;
 }
 
-// ---------- Plain-language interpretation ----------
+// ---------- Construct definitions (used in Introduction) ----------
 
-function scoreBand(v) {
-  if (v === null || v === undefined) return null;
-  if (v < 0.34) return "low";
-  if (v < 0.67) return "moderate";
-  return "high";
-}
+const ASSESSMENT_INTRO = {
+  construct: "AI-first mindset",
+  summary:
+    "AI-first mindset describes a working style that defaults to using AI where it " +
+    "genuinely helps, while retaining sound judgment about where it shouldn't be " +
+    "trusted, and staying accountable for the quality of what it produces. It is " +
+    "not simply enthusiasm for AI tools — someone can score poorly here by " +
+    "over-relying on AI just as easily as by avoiding it.",
+  method:
+    "This assessment (\"The Inbox\") is a short simulation, not a questionnaire. " +
+    "The player works through a queue of realistic work tasks under a fixed time " +
+    "budget, choosing for each one whether to do it manually, delegate it to an " +
+    "AI assistant, or skip it. Some delegated tasks come back with a planted " +
+    "error, requiring the player to notice it and decide how to respond. Behavior " +
+    "under time pressure, not self-report, is what generates the four scores below."
+};
+
+// ---------- Score dimensions: descriptors + BARS anchors ----------
 
 const SCORE_LABELS = {
   score_automation_seeking: "Automation-seeking",
@@ -38,33 +50,42 @@ const SCORE_DESCRIPTIONS = {
   score_error_recovery: "When a mistake was caught, whether it was fixed efficiently or redone from scratch."
 };
 
-const SCORE_INTERPRETATIONS = {
+// Behaviorally Anchored Rating Scale anchors: generic descriptions of what
+// each band of behavior looks like, independent of any one person's result.
+const BARS_ANCHORS = {
   score_automation_seeking: {
-    high: "Defaulted to delegating tasks to AI whenever the task was a reasonable candidate for it — a strong instinct to reach for AI first rather than defaulting to manual effort.",
-    moderate: "Delegated to AI on some suitable tasks but handled a meaningful share manually too — a mixed default rather than a strong AI-first instinct.",
-    low: "Mostly did suitable tasks manually rather than delegating — a default toward manual effort even where AI was a reasonable fit."
+    high: "Consistently identifies tasks suited to AI delegation and acts on that judgment as a default working pattern.",
+    moderate: "Recognizes some opportunities for AI delegation but inconsistently acts on them, mixing manual and delegated approaches.",
+    low: "Defaults to manual completion of tasks even when AI delegation would be efficient and appropriate."
   },
   score_judgment: {
-    high: "Correctly kept high-context, judgment-dependent tasks in human hands rather than handing them to AI — a clear sense of what AI shouldn't be trusted with.",
-    moderate: "Delegated one or two tasks that needed personal context or judgment AI didn't have — some blind spots in knowing where AI falls short.",
-    low: "Delegated several tasks that depended on context or judgment only a person could supply — a risk of over-trusting AI in situations it isn't suited for."
+    high: "Reliably distinguishes tasks that require personal context or judgment from those suited to AI, keeping the former manual.",
+    moderate: "Occasionally delegates tasks that require personal context or nuanced judgment, indicating partial awareness of AI's limits.",
+    low: "Frequently delegates high-context or judgment-dependent tasks to AI, indicating limited awareness of where AI assistance is inappropriate."
   },
   score_critical_evaluation: {
-    high: "Caught most AI errors before acting on them — reviewed delegated work rather than accepting it at face value.",
-    moderate: "Caught some AI errors but missed others — inconsistent review of AI output.",
-    low: "Missed most AI errors and let flawed output go through unchecked — a sign of trusting AI output without verifying it."
+    high: "Actively reviews AI-generated output and reliably identifies inaccuracies before acting on them.",
+    moderate: "Reviews AI output inconsistently, catching some errors while missing others.",
+    low: "Accepts AI-generated output largely at face value, rarely identifying embedded errors."
   },
   score_error_recovery: {
-    high: "When an error was caught, it was usually fixed efficiently rather than redone from scratch — targeted, confident correction.",
-    moderate: "Recovery from caught errors was a mix of quick fixes and full manual redos — workable, but not always the most efficient path.",
-    low: "When an error was caught, the whole task was usually redone manually rather than fixed — safe, but inefficient, and may reflect low trust in partially-correct AI output."
+    high: "Responds to identified AI errors with efficient, targeted corrections.",
+    moderate: "Responds to identified errors with a mix of targeted fixes and full manual redos.",
+    low: "Responds to identified errors by discarding AI output entirely and redoing the task manually, reflecting low confidence in partial correction."
   }
 };
+
+function scoreBand(v) {
+  if (v === null || v === undefined) return null;
+  if (v < 0.34) return "low";
+  if (v < 0.67) return "moderate";
+  return "high";
+}
 
 function interpretScore(key, value) {
   const band = scoreBand(value);
   if (!band) return "Not enough data — no tasks of this type were reached before time ran out.";
-  return SCORE_INTERPRETATIONS[key][band];
+  return BARS_ANCHORS[key][band];
 }
 
 // ---------- Completion / sample-size summary ----------
@@ -89,6 +110,8 @@ function analyzeCompletion(decisions) {
 
 // ---------- PDF generation ----------
 
+const BAND_LABEL = { low: "Low", moderate: "Moderate", high: "High" };
+
 // sessionRow shape (works for both a freshly-finished game and a row
 // pulled from Supabase):
 // { email, user_id, completed_at, started_at, time_used_seconds, timed_out,
@@ -100,97 +123,159 @@ function downloadSessionReport(sessionRow) {
   const lookup = buildTaskLookup();
   const who = sessionRow.email || sessionRow.user_id || "unknown";
   const completion = analyzeCompletion(sessionRow.decisions);
-  const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
+  const pageWidth = doc.internal.pageSize.getWidth();
   const maxWidth = pageWidth - marginX * 2;
 
   let y = 20;
 
-  const writeWrapped = (text, size, opts = {}) => {
-    doc.setFont("helvetica", opts.bold ? "bold" : "normal");
-    doc.setFontSize(size);
-    const lines = doc.splitTextToSize(text, maxWidth);
-    if (y + lines.length * (size * 0.5) > 285) { doc.addPage(); y = 20; }
-    doc.text(lines, marginX, y);
-    y += lines.length * (size * 0.5) + 3;
+  const ensureRoom = (needed) => {
+    if (y + needed > 285) { doc.addPage(); y = 20; }
   };
 
-  // Header
+  const heading = (text) => {
+    ensureRoom(10);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(text, marginX, y);
+    y += 8;
+  };
+
+  const paragraph = (text, size = 10) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(text, maxWidth);
+    ensureRoom(lines.length * (size * 0.5) + 2);
+    doc.text(lines, marginX, y);
+    y += lines.length * (size * 0.5) + 4;
+  };
+
+  const afterTable = () => { y = doc.lastAutoTable.finalY + 8; };
+
+  // ---------- Cover / header ----------
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(17);
   doc.text("The Inbox — AI-First Mindset Report", marginX, y);
   y += 10;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(`Player: ${who}`, marginX, y); y += 7;
+  doc.text(`Player: ${who}`, marginX, y); y += 6;
   const dateLabel = sessionRow.completed_at || sessionRow.started_at;
-  doc.text(`Date: ${dateLabel ? new Date(dateLabel).toLocaleString() : "—"}`, marginX, y); y += 7;
+  doc.text(`Date: ${dateLabel ? new Date(dateLabel).toLocaleString() : "-"}`, marginX, y); y += 6;
   const timeLabel = sessionRow.time_used_seconds != null
     ? `${sessionRow.time_used_seconds}s${sessionRow.timed_out ? " (time ran out before finishing)" : ""}`
-    : "—";
-  doc.text(`Time used: ${timeLabel}`, marginX, y); y += 7;
+    : "-";
+  doc.text(`Time used: ${timeLabel}`, marginX, y); y += 6;
   doc.text(`Tasks reached: ${completion.totalAttempted} of ${completion.taskTotal}`, marginX, y); y += 10;
 
-  // Disclaimer
-  writeWrapped(
-    "This is a behavioral snapshot from a single short session, not a validated psychometric score. Read it as a starting point for a conversation, not a verdict.",
+  // ---------- 1. Introduction ----------
+  heading("1. Introduction");
+  paragraph(`What this assessment measures: ${ASSESSMENT_INTRO.summary}`);
+  paragraph(`Method: ${ASSESSMENT_INTRO.method}`);
+  paragraph(
+    "This is a behavioral snapshot from a single short session, not a validated " +
+    "psychometric instrument. Treat it as a starting point for a conversation " +
+    "about working style, not a verdict.",
     9
   );
-  y += 4;
-
-  // What this means section
-  writeWrapped("What each score is based on", 12, { bold: true });
   y += 2;
 
-  const scoreKeys = ["score_automation_seeking", "score_judgment", "score_critical_evaluation", "score_error_recovery"];
+  // ---------- 2. Score descriptors ----------
+  heading("2. Score descriptors");
+  doc.autoTable({
+    startY: y,
+    margin: { left: marginX, right: marginX },
+    head: [["Dimension", "What it measures"]],
+    body: Object.keys(SCORE_LABELS).map(key => [SCORE_LABELS[key], SCORE_DESCRIPTIONS[key]]),
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [18, 23, 43] },
+    columnStyles: { 0: { cellWidth: 40, fontStyle: "bold" } }
+  });
+  afterTable();
 
-  scoreKeys.forEach((key) => {
+  // ---------- 3. Behaviorally Anchored Rating Scale ----------
+  heading("3. Behaviorally anchored rating scale (BARS)");
+  paragraph("Each dimension below is scored on three bands. The band this session actually landed in is highlighted.", 9);
+
+  Object.keys(SCORE_LABELS).forEach((key) => {
     const val = sessionRow[key];
-    const display = (val === null || val === undefined) ? "—" : `${Math.round(val * 100)}%`;
-    writeWrapped(`${SCORE_LABELS[key]}: ${display}`, 12, { bold: true });
-    writeWrapped(SCORE_DESCRIPTIONS[key], 9);
-    writeWrapped(interpretScore(key, val), 10);
-    y += 3;
+    const band = scoreBand(val);
+    const display = (val === null || val === undefined) ? "-" : `${Math.round(val * 100)}%`;
+
+    ensureRoom(12);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(`${SCORE_LABELS[key]} — ${display}${band ? ` (${BAND_LABEL[band]})` : ""}`, marginX, y);
+    y += 6;
+
+    doc.autoTable({
+      startY: y,
+      margin: { left: marginX, right: marginX },
+      head: [["Band", "Behavioral anchor"]],
+      body: [
+        ["High (67-100%)", BARS_ANCHORS[key].high],
+        ["Moderate (34-66%)", BARS_ANCHORS[key].moderate],
+        ["Low (0-33%)", BARS_ANCHORS[key].low]
+      ],
+      theme: "grid",
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [18, 23, 43] },
+      columnStyles: { 0: { cellWidth: 34, fontStyle: "bold" } },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        const rowBand = ["high", "moderate", "low"][data.row.index];
+        if (band && rowBand === band) {
+          data.cell.styles.fillColor = [232, 163, 61];
+          data.cell.styles.textColor = [18, 23, 43];
+        }
+      }
+    });
+    afterTable();
   });
 
-  // Sample-size transparency
-  writeWrapped(
-    `Automation-seeking and judgment are based on the AI-appropriate and inappropriate tasks actually reached ` +
-    `(${completion.appropriateAttempted} of ${completion.appropriateTotal}, and ${completion.inappropriateAttempted} of ${completion.inappropriateTotal}, respectively) — ` +
-    `not the full set of 13. Fewer tasks reached means a noisier read on that score.`,
+  // ---------- 4. Confidence / sample size ----------
+  heading("4. Confidence in these scores");
+  paragraph(
+    `Automation-seeking and judgment are based on the AI-appropriate and inappropriate ` +
+    `tasks actually reached (${completion.appropriateAttempted} of ${completion.appropriateTotal}, and ` +
+    `${completion.inappropriateAttempted} of ${completion.inappropriateTotal} respectively) — not the full set of ` +
+    `${completion.taskTotal}. Fewer tasks reached means a noisier read on that score.`,
     9
   );
-  y += 3;
-
   if (completion.flawsEncountered > 0) {
-    writeWrapped(
-      `Critical evaluation and error recovery are based on ${completion.flawsEncountered} AI mistake${completion.flawsEncountered === 1 ? "" : "s"} ` +
-      `encountered during this session, of which ${completion.flawsCaught} ${completion.flawsCaught === 1 ? "was" : "were"} caught.`,
+    paragraph(
+      `Critical evaluation and error recovery are based on ${completion.flawsEncountered} AI mistake` +
+      `${completion.flawsEncountered === 1 ? "" : "s"} encountered this session, of which ` +
+      `${completion.flawsCaught} ${completion.flawsCaught === 1 ? "was" : "were"} caught.`,
       9
     );
   } else {
-    writeWrapped("No AI mistakes were encountered this session (either nothing was delegated, or luck of the draw) — critical evaluation and error recovery have no data to score.", 9);
+    paragraph("No AI mistakes were encountered this session — critical evaluation and error recovery have no data to score.", 9);
   }
-  y += 6;
-
-  // Task-by-task breakdown
-  writeWrapped("Task-by-task decisions", 12, { bold: true });
   y += 2;
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-
-  (sessionRow.decisions || []).forEach((d) => {
+  // ---------- 5. Task-by-task decision log ----------
+  heading("5. Task-by-task decision log");
+  const logRows = (sessionRow.decisions || []).map((d) => {
     const task = lookup[d.taskId];
     const title = task ? task.title : d.taskId;
-    let line = `${title} — ${d.action}`;
+    let outcome = "-";
     if (d.flawEncountered) {
-      line += d.flawCaught ? ` (flaw caught: ${d.recoveryAction})` : " (flaw missed)";
+      outcome = d.flawCaught ? `Flaw caught (${d.recoveryAction})` : "Flaw missed";
     }
-    if (y > 280) { doc.addPage(); y = 20; }
-    doc.text(line, marginX, y);
-    y += 6;
+    return [title, d.action, outcome];
+  });
+
+  doc.autoTable({
+    startY: y,
+    margin: { left: marginX, right: marginX },
+    head: [["Task", "Action taken", "AI outcome"]],
+    body: logRows,
+    theme: "grid",
+    styles: { fontSize: 8.5, cellPadding: 3.5 },
+    headStyles: { fillColor: [18, 23, 43] }
   });
 
   const safeName = String(who).replace(/[^a-z0-9]/gi, "_");
