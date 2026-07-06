@@ -234,11 +234,29 @@ function buildOwnSessionRow(scores) {
 
 function renderResultsSummary(scores) {
   const fmt = (v) => (v === null ? "—" : Math.round(v * 100) + "%");
+  const completion = analyzeCompletion(state.decisions);
+
+  const rows = [
+    ["score_automation_seeking", "Automation-seeking"],
+    ["score_judgment", "Judgment"],
+    ["score_critical_evaluation", "Critical evaluation"],
+    ["score_error_recovery", "Error recovery"]
+  ];
+
+  const completionNote = `Reached ${completion.totalAttempted} of ${completion.taskTotal} tasks`
+    + (state.timedOut ? " (time ran out before finishing)." : ".");
+
   el("results-summary").innerHTML = `
-    <div class="score-row"><span>Automation-seeking</span><span>${fmt(scores.score_automation_seeking)}</span></div>
-    <div class="score-row"><span>Judgment</span><span>${fmt(scores.score_judgment)}</span></div>
-    <div class="score-row"><span>Critical evaluation</span><span>${fmt(scores.score_critical_evaluation)}</span></div>
-    <div class="score-row"><span>Error recovery</span><span>${fmt(scores.score_error_recovery)}</span></div>
+    <p class="status" style="margin-bottom:16px;">${completionNote}</p>
+    ${rows.map(([key, label]) => `
+      <div class="score-row" style="flex-direction:column; align-items:flex-start; gap:4px; padding:14px 0;">
+        <div style="display:flex; justify-content:space-between; width:100%;">
+          <strong>${label}</strong><span>${fmt(scores[key])}</span>
+        </div>
+        <p style="margin:0; font-size:13px;">${interpretScore(key, scores[key])}</p>
+      </div>
+    `).join("")}
+    <p class="status" style="margin-top:12px;">This is a single-session snapshot, not a validated score — useful as a starting point for a conversation, not a verdict.</p>
   `;
 }
 
