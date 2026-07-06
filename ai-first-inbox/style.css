@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+
+:root {
+  --ink: #12172B;
+  --ink-soft: #1D2340;
+  --paper: #F7F4EE;
+  --paper-dim: #E9E4D8;
+  --amber: #E8A33D;
+  --teal: #3E8E82;
+  --coral: #E1543D;
+  --text-dim: #8A90AE;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.screen { display: none; width: 100%; max-width: 560px; }
+.screen.active { display: block; }
+
+h1, h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+
+p { line-height: 1.5; color: var(--text-dim); }
+
+.card {
+  background: var(--ink-soft);
+  border-radius: 12px;
+  padding: 32px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+input[type="email"] {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 15px;
+  margin: 16px 0;
+}
+
+button {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+button:active { transform: scale(0.98); }
+
+.btn-primary { background: var(--amber); color: var(--ink); }
+.btn-manual { background: var(--teal); color: var(--ink); }
+.btn-delegate { background: var(--amber); color: var(--ink); }
+.btn-skip { background: transparent; color: var(--text-dim); border: 1px solid rgba(255,255,255,0.15); }
+.btn-fix { background: var(--teal); color: var(--ink); }
+.btn-redo { background: transparent; color: var(--paper); border: 1px solid rgba(255,255,255,0.2); }
+.btn-accept { background: var(--coral); color: var(--paper); }
+
+.status { font-family: 'IBM Plex Mono', monospace; font-size: 13px; margin-top: 12px; color: var(--text-dim); }
+
+/* Game screen */
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20px;
+}
+
+#task-counter {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+#timer {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--paper);
+}
+#timer.low { color: var(--coral); }
+
+.task-card {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.task-card p { color: #4A4F6A; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.hidden { display: none !important; }
+
+.ai-output-box {
+  background: #FBF8F1;
+  border: 1px dashed #C9C2AE;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+}
+.score-row span:first-child { color: var(--text-dim); }

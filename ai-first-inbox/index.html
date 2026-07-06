@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Inbox — AI-First Mindset Assessment</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="screen-login" class="screen active">
+  <div class="eyebrow">The Inbox</div>
+  <h1>Sign in to begin</h1>
+  <p>Enter your email and we'll send you a one-time link — no password needed.</p>
+  <div class="card">
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="you@company.com" required />
+      <button type="submit" class="btn-primary">Send login link</button>
+    </form>
+    <div class="status" id="login-status"></div>
+  </div>
+</section>
+
+<!-- INTRO -->
+<section id="screen-intro" class="screen">
+  <div class="eyebrow">The Inbox</div>
+  <h1>Your inbox is full. You have 6 minutes.</h1>
+  <div class="card">
+    <p>
+      Tasks will come in one at a time. For each one, you can do it yourself,
+      delegate it to your AI assistant, or skip it. The AI is fast — but not
+      always right. What you do with its work matters as much as whether you use it.
+    </p>
+    <p>There's no single "correct" way to play. Just work the way you actually would.</p>
+    <button id="btn-start" class="btn-primary">Start</button>
+  </div>
+</section>
+
+<!-- GAME -->
+<section id="screen-game" class="screen">
+  <div class="game-header">
+    <span id="task-counter"></span>
+    <span id="timer">6:00</span>
+  </div>
+
+  <div class="task-card">
+    <h2 id="task-title"></h2>
+    <p id="task-brief"></p>
+
+    <div id="task-actions" class="actions">
+      <button id="btn-manual" class="btn-manual">Do it myself</button>
+      <button id="btn-delegate" class="btn-delegate">Delegate to AI</button>
+      <button id="btn-skip" class="btn-skip">Skip</button>
+    </div>
+
+    <div id="ai-review" class="hidden">
+      <div class="ai-output-box" id="ai-output"></div>
+      <div class="actions">
+        <button id="btn-accept" class="btn-accept">Looks good — send it</button>
+        <button id="btn-fix" class="btn-fix">Fix the issue</button>
+        <button id="btn-redo" class="btn-redo">Redo it myself</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="screen-results" class="screen">
+  <div class="eyebrow">Session complete</div>
+  <h1>Here's how it went</h1>
+  <div class="card">
+    <div id="results-summary"></div>
+    <div class="status" id="save-status">Saving…</div>
+    <button id="btn-download-report" class="btn-primary" style="margin-top:16px;">Download my report (PDF)</button>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="config.js"></script>
+<script>
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+</script>
+<script src="tasks.js"></script>
+<script src="scoring.js"></script>
+<script src="report.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
