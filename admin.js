@@ -8,7 +8,7 @@ function showScreen(name) {
 }
 
 async function sendMagicLink(email) {
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.location.href }
   });
@@ -16,7 +16,7 @@ async function sendMagicLink(email) {
 }
 
 async function loadDashboard() {
-  const { data, error } = await supabase.rpc("get_all_sessions_with_email");
+  const { data, error } = await sb.rpc("get_all_sessions_with_email");
 
   if (error) {
     console.error(error);
@@ -70,14 +70,14 @@ function renderRows(rows) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session) {
     await loadDashboard();
   } else {
     showScreen("login");
   }
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  sb.auth.onAuthStateChange(async (_event, session) => {
     if (session) {
       await loadDashboard();
     }
