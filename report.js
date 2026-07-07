@@ -88,6 +88,16 @@ function interpretScore(key, value) {
   return BARS_ANCHORS[key][band];
 }
 
+const READINESS_INTERPRETATIONS = {
+  high: "Demonstrates strong AI-first working habits across the board — appropriately delegates suitable work, exercises sound judgment about what to keep manual, and reviews AI output critically rather than accepting it at face value.",
+  moderate: "Shows a developing AI-first working style, with some inconsistency across delegation, judgment about what to keep manual, or review of AI output.",
+  low: "Currently relies primarily on manual effort and/or accepts AI output without much scrutiny. Building stronger AI-first habits — both delegating more, and reviewing what comes back more critically — would likely help."
+};
+
+function readinessInterpretation(band) {
+  return READINESS_INTERPRETATIONS[band] || "Not enough data to characterize overall readiness yet.";
+}
+
 // ---------- Completion / sample-size summary ----------
 
 function analyzeCompletion(decisions) {
@@ -152,6 +162,26 @@ function downloadSessionReport(sessionRow) {
 
   const afterTable = () => { y = doc.lastAutoTable.finalY + 8; };
 
+  const drawBar = (label, pct, x, barY, barWidth, fillColor) => {
+    const barHeight = 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(label, x, barY - 2);
+    doc.setFillColor(230, 230, 230);
+    doc.rect(x, barY, barWidth, barHeight, "F");
+    if (pct !== null && pct !== undefined) {
+      doc.setFillColor(...fillColor);
+      doc.rect(x, barY, barWidth * Math.max(0, Math.min(1, pct)), barHeight, "F");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${Math.round(pct * 100)}%`, x + barWidth + 6, barY + barHeight - 1);
+      doc.setTextColor(0, 0, 0);
+    } else {
+      doc.setFontSize(9);
+      doc.text("no data", x + barWidth + 6, barY + barHeight - 1);
+    }
+  };
+
   // ---------- Cover / header ----------
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);
@@ -164,7 +194,7 @@ function downloadSessionReport(sessionRow) {
   const dateLabel = sessionRow.completed_at || sessionRow.started_at;
   doc.text(`Date: ${dateLabel ? new Date(dateLabel).toLocaleString() : "-"}`, marginX, y); y += 6;
   const timeLabel = sessionRow.time_used_seconds != null
-    ? `${sessionRow.time_used_seconds}s${sessionRow.timed_out ? " (time ran out before finishing)" : ""}`
+    ? `${sessionRow.time_used_seconds}s${sessionRow.timed_out ? " (went over the time budget)" : ""}`
     : "-";
   doc.text(`Time used: ${timeLabel}`, marginX, y); y += 6;
   doc.text(`Tasks reached: ${completion.totalAttempted} of ${completion.taskTotal}`, marginX, y); y += 10;
@@ -181,8 +211,43 @@ function downloadSessionReport(sessionRow) {
   );
   y += 2;
 
-  // ---------- 2. Score descriptors ----------
-  heading("2. Score descriptors");
+  // ---------- 2. Overall result ----------
+  heading("2. Overall result");
+  const readinessVal = sessionRow.score_readiness;
+  const readinessBand = scoreBand(readinessVal);
+  const readinessDisplay = (readinessVal === null || readinessVal === undefined) ? "-" : `${Math.round(readinessVal * 100)}%`;
+
+  ensureRoom(14);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text(`AI-First Readiness: ${readinessDisplay}${readinessBand ? ` (${BAND_LABEL[readinessBand]})` : ""}`, marginX, y);
+  y += 8;
+  doc.setFillColor(230, 230, 230);
+  doc.rect(marginX, y, 120, 8, "F");
+  if (readinessVal !== null && readinessVal !== undefined) {
+    doc.setFillColor(232, 163, 61);
+    doc.rect(marginX, y, 120 * Math.max(0, Math.min(1, readinessVal)), 8, "F");
+  }
+  y += 14;
+
+  paragraph(readinessBand ? readinessInterpretation(readinessBand) : "Not enough data to compute an overall score this session.", 10);
+  y += 4;
+
+  paragraph("Distributed across the four dimensions it's built from:", 9);
+  y += 4;
+
+  const barKeys = ["score_automation_seeking", "score_judgment", "score_critical_evaluation", "score_error_recovery"];
+  const barWidth = 90;
+  barKeys.forEach((key) => {
+    ensureRoom(14);
+    y += 4;
+    drawBar(SCORE_LABELS[key], sessionRow[key], marginX, y, barWidth, [62, 142, 130]);
+    y += 8;
+  });
+  y += 6;
+
+  // ---------- 3. Score descriptors ----------
+  heading("3. Score descriptors");
   doc.autoTable({
     startY: y,
     margin: { left: marginX, right: marginX },
@@ -196,7 +261,7 @@ function downloadSessionReport(sessionRow) {
   afterTable();
 
   // ---------- 3. Behaviorally Anchored Rating Scale ----------
-  heading("3. Behaviorally anchored rating scale (BARS)");
+  heading("4. Behaviorally anchored rating scale (BARS)");
   paragraph("Each dimension below is scored on three bands. The band this session actually landed in is highlighted.", 9);
 
   Object.keys(SCORE_LABELS).forEach((key) => {
@@ -236,7 +301,7 @@ function downloadSessionReport(sessionRow) {
   });
 
   // ---------- 4. Confidence / sample size ----------
-  heading("4. Confidence in these scores");
+  heading("5. Confidence in these scores");
   paragraph(
     `Automation-seeking and judgment are based on the AI-appropriate and inappropriate ` +
     `tasks actually reached (${completion.appropriateAttempted} of ${completion.appropriateTotal}, and ` +
@@ -257,7 +322,7 @@ function downloadSessionReport(sessionRow) {
   y += 2;
 
   // ---------- 5. Task-by-task decision log ----------
-  heading("5. Task-by-task decision log");
+  heading("6. Task-by-task decision log");
   const logRows = (sessionRow.decisions || []).map((d) => {
     const task = lookup[d.taskId];
     const title = task ? task.title : d.taskId;
