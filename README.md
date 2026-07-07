@@ -55,6 +55,29 @@ Open the URL, sign in with your own email, play through, and check
 **Supabase → Table Editor → sessions** to confirm a row was written with
 your decisions and subscores.
 
+## Recent changes: mandatory completion + overall readiness score
+
+- **Every player now completes all 13 tasks.** The timer still counts down
+  (and turns red and counts into overtime if exceeded), but it no longer
+  ends the session early — this guarantees every player's scores are based
+  on the same number of items, so people can actually be compared to each
+  other. The `timed_out` column now means "went over the time budget," not
+  "was cut off partway through."
+- **New composite score: `score_readiness`** — an overall AI-First
+  Readiness percentage, computed as the mean of the 4 dimension scores
+  (excluding any that have no data). Shown prominently above the 4-way
+  breakdown, both on the results screen and in the PDF report, with a
+  distributed bar chart underneath.
+
+**If you already ran the original `supabase-schema.sql`**, run this once in
+the SQL Editor to add the new column without losing existing data:
+```sql
+alter table public.sessions add column if not exists score_readiness numeric;
+```
+Then re-run the rest of `supabase-schema.sql` (the `create or replace
+function` for `get_all_sessions_with_email` is safe to re-run — it just
+updates the function definition to include the new column).
+
 ## Viewing results across players
 
 There's now an admin dashboard at `admin.html`. It's a separate page
