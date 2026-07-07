@@ -17,6 +17,7 @@ create table if not exists public.sessions (
   score_judgment numeric,
   score_critical_evaluation numeric,
   score_error_recovery numeric,
+  score_readiness numeric, -- overall composite: mean of the 4 dimensions above
 
   created_at timestamptz not null default now()
 );
@@ -67,6 +68,10 @@ create policy "Admins can read all sessions"
 -- auth.users isn't exposed to the client directly, so admins need a function
 -- to see *which* player each session belongs to. This function checks
 -- admin status itself, so it's safe to expose to any logged-in user.
+-- If you already ran a previous version of this schema, run this once to
+-- add the new column without losing existing data:
+--   alter table public.sessions add column if not exists score_readiness numeric;
+
 create or replace function public.get_all_sessions_with_email()
 returns table (
   id uuid,
@@ -80,7 +85,8 @@ returns table (
   score_automation_seeking numeric,
   score_judgment numeric,
   score_critical_evaluation numeric,
-  score_error_recovery numeric
+  score_error_recovery numeric,
+  score_readiness numeric
 )
 language sql
 security definer
@@ -89,7 +95,8 @@ as $$
   select s.id, s.user_id, u.email, s.started_at, s.completed_at,
          s.time_used_seconds, s.timed_out, s.decisions,
          s.score_automation_seeking, s.score_judgment,
-         s.score_critical_evaluation, s.score_error_recovery
+         s.score_critical_evaluation, s.score_error_recovery,
+         s.score_readiness
   from public.sessions s
   join auth.users u on u.id = s.user_id
   where exists (select 1 from public.admins a where a.user_id = auth.uid())
@@ -97,4 +104,3 @@ as $$
 $$;
 
 grant execute on function public.get_all_sessions_with_email() to authenticated;
-
