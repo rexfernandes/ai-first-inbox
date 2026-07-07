@@ -1,6 +1,13 @@
 // game.js
-// Depends on: config.js, tasks.js, scoring.js, and a global `sb` client
-// created in index.html from supabase-js.
+// Depends on: config.js, tasks.js, scoring.js, report.js, and a global `sb`
+// client created in index.html from supabase-js.
+//
+// Design note: every player completes all tasks in the queue — the timer is
+// no longer a hard cutoff. It still counts down (and goes into overtime in
+// red if exceeded), because time pressure is part of what the game
+// measures, but running out of time no longer truncates the session. This
+// guarantees every player's scores are based on the same number of items,
+// which matters for comparing people to each other.
 
 const state = {
   user: null,
@@ -10,7 +17,7 @@ const state = {
   timerHandle: null,
   decisions: [],
   sessionId: null,
-  timedOut: false
+  lastScores: null
 };
 
 const el = (id) => document.getElementById(id);
@@ -56,7 +63,6 @@ function startGame() {
   state.currentIndex = 0;
   state.timeRemaining = CONFIG.totalTimeSeconds;
   state.decisions = [];
-  state.timedOut = false;
 
   showScreen("game");
   startTimer();
@@ -76,29 +82,32 @@ function startTimer() {
   state.timerHandle = setInterval(() => {
     state.timeRemaining -= 1;
     updateTimerDisplay();
-    if (state.timeRemaining <= 0) {
-      state.timedOut = true;
-      clearInterval(state.timerHandle);
-      endGame();
-    }
+    // Deliberately no cutoff here — the clock keeps running (into overtime)
+    // rather than ending the session. See design note at top of file.
   }, 1000);
 }
 
 function updateTimerDisplay() {
-  const m = Math.floor(Math.max(0, state.timeRemaining) / 60);
-  const s = Math.max(0, state.timeRemaining) % 60;
-  el("timer").textContent = `${m}:${s.toString().padStart(2, "0")}`;
-  el("timer").classList.toggle("low", state.timeRemaining <= 30);
+  const timerEl = el("timer");
+  if (state.timeRemaining >= 0) {
+    const m = Math.floor(state.timeRemaining / 60);
+    const s = state.timeRemaining % 60;
+    timerEl.textContent = `${m}:${s.toString().padStart(2, "0")}`;
+    timerEl.classList.toggle("low", state.timeRemaining <= 30);
+    timerEl.classList.remove("over-budget");
+  } else {
+    const over = Math.abs(state.timeRemaining);
+    const m = Math.floor(over / 60);
+    const s = over % 60;
+    timerEl.textContent = `+${m}:${s.toString().padStart(2, "0")}`;
+    timerEl.classList.add("over-budget");
+    timerEl.classList.remove("low");
+  }
 }
 
 function spendTime(seconds) {
   state.timeRemaining -= seconds;
   updateTimerDisplay();
-  if (state.timeRemaining <= 0) {
-    state.timedOut = true;
-    clearInterval(state.timerHandle);
-    endGame();
-  }
 }
 
 function currentTask() {
@@ -220,13 +229,23 @@ async function endGame() {
   await saveSession(scores);
 }
 
+// `timed_out` (DB column name kept for compatibility) now means "went over
+// the time budget," not "was cut off" — everyone finishes all tasks either way.
+function wentOverBudget() {
+  return state.timeRemaining < 0;
+}
+
+function timeUsedSeconds() {
+  return CONFIG.totalTimeSeconds - state.timeRemaining;
+}
+
 function buildOwnSessionRow(scores) {
   return {
     email: state.user.email,
     user_id: state.user.id,
     completed_at: new Date().toISOString(),
-    time_used_seconds: CONFIG.totalTimeSeconds - Math.max(0, state.timeRemaining),
-    timed_out: state.timedOut,
+    time_used_seconds: timeUsedSeconds(),
+    timed_out: wentOverBudget(),
     decisions: state.decisions,
     ...scores
   };
@@ -234,7 +253,7 @@ function buildOwnSessionRow(scores) {
 
 function renderResultsSummary(scores) {
   const fmt = (v) => (v === null ? "—" : Math.round(v * 100) + "%");
-  const completion = analyzeCompletion(state.decisions);
+  const overBudget = wentOverBudget();
 
   const rows = [
     ["score_automation_seeking", "Automation-seeking"],
@@ -243,11 +262,22 @@ function renderResultsSummary(scores) {
     ["score_error_recovery", "Error recovery"]
   ];
 
-  const completionNote = `Reached ${completion.totalAttempted} of ${completion.taskTotal} tasks`
-    + (state.timedOut ? " (time ran out before finishing)." : ".");
+  const readinessBand = scoreBand(scores.score_readiness);
+  const readinessDisplay = fmt(scores.score_readiness);
+  const readinessNote = readinessBand ? readinessInterpretation(readinessBand) : "Not enough data to compute an overall score.";
+
+  const timeNote = overBudget
+    ? `Finished all ${TASK_TOTAL} tasks, but went over the ${Math.round(CONFIG.totalTimeSeconds / 60)}-minute time budget.`
+    : `Finished all ${TASK_TOTAL} tasks within the ${Math.round(CONFIG.totalTimeSeconds / 60)}-minute time budget.`;
 
   el("results-summary").innerHTML = `
-    <p class="status" style="margin-bottom:16px;">${completionNote}</p>
+    <div class="readiness-block">
+      <div class="readiness-label">Overall AI-First Readiness</div>
+      <div class="readiness-score">${readinessDisplay}${readinessBand ? ` <span class="readiness-band">(${readinessBand[0].toUpperCase()}${readinessBand.slice(1)})</span>` : ""}</div>
+      <p class="status" style="margin-top:4px;">${readinessNote}</p>
+    </div>
+    <p class="status" style="margin:16px 0;">${timeNote}</p>
+    <div class="eyebrow" style="margin-bottom:8px;">Competency breakdown</div>
     ${rows.map(([key, label]) => `
       <div class="score-row" style="flex-direction:column; align-items:flex-start; gap:4px; padding:14px 0;">
         <div style="display:flex; justify-content:space-between; width:100%;">
@@ -261,12 +291,11 @@ function renderResultsSummary(scores) {
 }
 
 async function saveSession(scores) {
-  const timeUsed = CONFIG.totalTimeSeconds - Math.max(0, state.timeRemaining);
   const { error } = await sb.from("sessions").insert({
     user_id: state.user.id,
     completed_at: new Date().toISOString(),
-    time_used_seconds: timeUsed,
-    timed_out: state.timedOut,
+    time_used_seconds: timeUsedSeconds(),
+    timed_out: wentOverBudget(),
     decisions: state.decisions,
     ...scores
   });
