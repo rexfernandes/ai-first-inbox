@@ -37,10 +37,22 @@ function computeScores(decisions) {
     ? recoveryScored.reduce((sum, d) => sum + recoveryWeights[d.recoveryAction], 0) / recoveryScored.length
     : null;
 
-  return {
+  const results = {
     score_automation_seeking: automationSeeking,
     score_judgment: judgment,
     score_critical_evaluation: criticalEvaluation,
     score_error_recovery: errorRecovery
   };
+
+  // Overall readiness: unweighted mean of whichever of the 4 dimensions
+  // actually have data. With every player now completing all 13 tasks,
+  // automation-seeking and judgment will always be present; critical
+  // evaluation and error recovery depend on at least one AI flaw having
+  // been encountered, which is likely but not guaranteed across 8 chances.
+  const available = Object.values(results).filter(v => v !== null);
+  results.score_readiness = available.length
+    ? available.reduce((sum, v) => sum + v, 0) / available.length
+    : null;
+
+  return results;
 }
