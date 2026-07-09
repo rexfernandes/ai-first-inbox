@@ -17,7 +17,8 @@ const state = {
   timerHandle: null,
   decisions: [],
   sessionId: null,
-  lastScores: null
+  lastScores: null,
+  forcedFlawUsed: false
 };
 
 const el = (id) => document.getElementById(id);
@@ -63,6 +64,7 @@ function startGame() {
   state.currentIndex = 0;
   state.timeRemaining = CONFIG.totalTimeSeconds;
   state.decisions = [];
+  state.forcedFlawUsed = false;
 
   showScreen("game");
   startTimer();
@@ -175,7 +177,21 @@ function chooseDelegate() {
   const task = currentTask();
   spendTime(task.aiCost);
 
-  const flawTriggered = task.flawChance > 0 && Math.random() < task.flawChance;
+  let flawTriggered = task.flawChance > 0 && Math.random() < task.flawChance;
+
+  // Guarantee coverage: critical-evaluation and error-recovery need at least
+  // one flaw-review moment to produce a score. Left to pure chance, a player
+  // who delegates only a handful of eligible tasks can end up with zero by
+  // luck, even if they'd have caught (or missed) it every time. So the first
+  // eligible delegation of the session is forced to surface a flaw if one
+  // hasn't happened naturally yet. This only ever adds a data point for a
+  // player who actually chose to delegate — someone who never delegates an
+  // eligible task still correctly gets a null score here, since there's
+  // genuinely nothing to evaluate.
+  if (!flawTriggered && task.class === "appropriate" && task.flawChance > 0 && !state.forcedFlawUsed) {
+    flawTriggered = true;
+  }
+  if (flawTriggered) state.forcedFlawUsed = true;
 
   if (task.class === "inappropriate" || !flawTriggered) {
     // No AI output to review — either it's an inappropriate task (context-only,
