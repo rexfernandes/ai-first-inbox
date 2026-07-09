@@ -37,13 +37,20 @@
 <section id="screen-dashboard" class="screen wide">
   <div class="eyebrow">The Inbox — Dashboard</div>
   <h1>Results</h1>
-  <p id="dashboard-meta"></p>
+  <div class="dashboard-toolbar">
+    <p id="dashboard-meta"></p>
+    <div class="dashboard-toolbar-right">
+      <span id="last-updated" class="status"></span>
+      <button id="btn-refresh" class="btn-manual">Refresh</button>
+    </div>
+  </div>
   <div class="card wide">
     <table id="sessions-table">
       <thead>
         <tr>
           <th>Player</th>
           <th>Completed</th>
+          <th>Readiness</th>
           <th>Automation</th>
           <th>Judgment</th>
           <th>Critical eval</th>
