@@ -1,6 +1,8 @@
 // admin.js
 
 const el = (id) => document.getElementById(id);
+const AUTO_REFRESH_MS = 30000;
+let refreshHandle = null;
 
 function showScreen(name) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -15,12 +17,12 @@ async function sendMagicLink(email) {
   return error;
 }
 
-async function loadDashboard() {
+async function loadDashboard(isBackground = false) {
   const { data, error } = await sb.rpc("get_all_sessions_with_email");
 
   if (error) {
     console.error(error);
-    showScreen("denied");
+    if (!isBackground) showScreen("denied");
     return;
   }
 
@@ -29,8 +31,32 @@ async function loadDashboard() {
   // treat it as "no data yet" rather than denying access outright.
   showScreen("dashboard");
   el("dashboard-meta").textContent = `${data.length} session${data.length === 1 ? "" : "s"} recorded.`;
+  el("last-updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
   renderRows(data);
 }
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  refreshHandle = setInterval(() => {
+    if (document.visibilityState === "visible") {
+      loadDashboard(true);
+    }
+  }, AUTO_REFRESH_MS);
+}
+
+function stopAutoRefresh() {
+  if (refreshHandle) {
+    clearInterval(refreshHandle);
+    refreshHandle = null;
+  }
+}
+
+// Catch up immediately if the tab was backgrounded past a refresh cycle
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && el("screen-dashboard").classList.contains("active")) {
+    loadDashboard(true);
+  }
+});
 
 function fmtScore(v) {
   return (v === null || v === undefined) ? "—" : `${Math.round(v * 100)}%`;
@@ -50,6 +76,7 @@ function renderRows(rows) {
     tr.innerHTML = `
       <td>${row.email}</td>
       <td>${completed}</td>
+      <td><strong>${fmtScore(row.score_readiness)}</strong></td>
       <td>${fmtScore(row.score_automation_seeking)}</td>
       <td>${fmtScore(row.score_judgment)}</td>
       <td>${fmtScore(row.score_critical_evaluation)}</td>
@@ -73,6 +100,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     await loadDashboard();
+    startAutoRefresh();
   } else {
     showScreen("login");
   }
@@ -80,8 +108,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   sb.auth.onAuthStateChange(async (_event, session) => {
     if (session) {
       await loadDashboard();
+      startAutoRefresh();
+    } else {
+      stopAutoRefresh();
     }
   });
+
+  el("btn-refresh").addEventListener("click", () => loadDashboard());
 
   el("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
