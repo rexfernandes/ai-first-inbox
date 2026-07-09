@@ -1,6 +1,25 @@
 .screen.wide { max-width: 960px; width: 100%; }
 .card.wide { padding: 20px; overflow-x: auto; }
 
+.dashboard-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.dashboard-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#btn-refresh {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
